@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  goals            Goal[]
+  sentRequests     FriendRequest[] @relation("requester")
+  receivedRequests FriendRequest[] @relation("recipient")
+}
+
+model Goal {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  date      String   // YYYY-MM-DD
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+model FriendRequest {
+  id          String   @id @default(cuid())
+  requesterId String
+  requester   User     @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User     @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  status      String   @default("pending") // pending, accepted, rejected
+  createdAt   DateTime @default(now())
+
+  @@unique([requesterId, recipientId])
+}
