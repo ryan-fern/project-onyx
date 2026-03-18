@@ -25,7 +25,7 @@ interface DayBar {
 function ScoreBar({ value }: { value: number }) {
   const color =
     value >= 80
-      ? "bg-green-500"
+      ? "bg-emerald-400"
       : value >= 50
         ? "bg-yellow-500"
         : value > 0
@@ -33,9 +33,9 @@ function ScoreBar({ value }: { value: number }) {
           : "bg-zinc-700";
 
   return (
-    <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+    <div className="w-full bg-zinc-800 rounded-none h-1 overflow-hidden">
       <div
-        className={`h-2 rounded-full transition-all duration-500 ${color}`}
+        className={`h-1 rounded-none transition-all duration-500 ${color}`}
         style={{ width: `${value}%` }}
       />
     </div>
@@ -149,7 +149,7 @@ export default function DashboardPage() {
       setGoals((prev) =>
         prev.map((g) => (g.id === updated.id ? updated : g))
       );
-      toast.success(updated.completed ? "Goal completed! 🔥" : "Goal unchecked.");
+      toast.success(updated.completed ? "Goal completed!" : "Goal unchecked.");
       fetchWeekBars();
     } catch {
       setGoals(goals); // revert
@@ -175,7 +175,7 @@ export default function DashboardPage() {
   if (status === "loading" || status === "unauthenticated") {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-zinc-500 text-sm">Loading...</div>
+        <div className="text-zinc-500 text-sm font-mono">Loading...</div>
       </div>
     );
   }
@@ -187,7 +187,7 @@ export default function DashboardPage() {
 
   const scoreColor =
     score >= 80
-      ? "text-green-400"
+      ? "text-emerald-400"
       : score >= 50
         ? "text-yellow-400"
         : score > 0
@@ -196,7 +196,7 @@ export default function DashboardPage() {
 
   const barColor =
     score >= 80
-      ? "bg-green-500"
+      ? "bg-emerald-400"
       : score >= 50
         ? "bg-yellow-500"
         : score > 0
@@ -212,64 +212,62 @@ export default function DashboardPage() {
       <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Date header */}
         <div className="mb-8">
-          <p className="text-zinc-500 text-sm mb-1">Today</p>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-50">
+          <p className="text-xs tracking-widest text-zinc-600 uppercase font-mono mb-1">Today</p>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-50">
             {todayLabel}
           </h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-6">
           {/* Left column: score + goals */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-0">
             {/* Lock-In Score card */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-none p-6 mb-px">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-zinc-400 text-sm mb-1">Lock-In Score</p>
+                  <p className="text-xs tracking-widest text-zinc-500 uppercase mb-2">Lock-In Score</p>
                   <div className={`text-5xl font-bold tracking-tight ${scoreColor}`}>
                     {score}%
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-zinc-300 text-lg font-bold">
+                  <div className="text-zinc-300 text-lg font-bold font-mono">
                     {completedGoals}
-                    <span className="text-zinc-500 font-normal">/{totalGoals}</span>
+                    <span className="text-zinc-600 font-normal">/{totalGoals}</span>
                   </div>
-                  <p className="text-zinc-500 text-xs mt-0.5">goals complete</p>
+                  <p className="text-zinc-600 text-xs mt-0.5 uppercase tracking-wide">goals complete</p>
                 </div>
               </div>
 
-              <div className="w-full bg-zinc-800 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-zinc-800 rounded-none h-1 overflow-hidden">
                 <div
-                  className={`h-3 rounded-full transition-all duration-700 ${barColor}`}
+                  className={`h-1 rounded-none transition-all duration-700 ${barColor}`}
                   style={{ width: `${score}%` }}
                 />
               </div>
 
               {totalGoals === 0 && (
-                <p className="text-zinc-500 text-sm mt-3">
+                <p className="text-zinc-600 text-xs mt-3">
                   No goals set yet — add your first goal below.
                 </p>
               )}
             </div>
 
             {/* Add Goal */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-zinc-50 font-bold tracking-tight mb-4">
-                Add a Goal
-              </h2>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-none p-6 mb-px">
+              <p className="text-xs tracking-widest text-zinc-500 uppercase mb-4">Add a Goal</p>
               <form onSubmit={handleAddGoal} className="flex gap-3">
                 <input
                   type="text"
                   value={newGoalTitle}
                   onChange={(e) => setNewGoalTitle(e.target.value)}
                   placeholder="What do you want to accomplish today?"
-                  className="flex-1 bg-zinc-950 border border-zinc-700 text-zinc-50 placeholder-zinc-500 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="flex-1 bg-zinc-950 border border-zinc-700 text-zinc-50 placeholder-zinc-600 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-zinc-500 transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={addingGoal || !newGoalTitle.trim()}
-                  className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-semibold px-5 py-2.5 rounded-full text-sm transition-colors whitespace-nowrap"
+                  className="bg-white text-zinc-950 disabled:bg-zinc-400 disabled:cursor-not-allowed font-semibold px-5 py-2 rounded-sm text-sm transition-colors whitespace-nowrap hover:bg-zinc-200"
                 >
                   {addingGoal ? "Adding..." : "Add Goal"}
                 </button>
@@ -277,44 +275,43 @@ export default function DashboardPage() {
             </div>
 
             {/* Goals list */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-zinc-50 font-bold tracking-tight mb-4">
-                {totalGoals === 0 ? "Goals" : `Goals (${totalGoals})`}
-              </h2>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-none">
+              <div className="px-6 py-4 border-b border-zinc-800">
+                <p className="text-xs tracking-widest text-zinc-500 uppercase">
+                  {totalGoals === 0 ? "Goals" : `Goals (${totalGoals})`}
+                </p>
+              </div>
 
               {loadingGoals ? (
-                <div className="text-zinc-500 text-sm py-4 text-center">
+                <div className="text-zinc-600 text-sm py-6 text-center font-mono">
                   Loading goals...
                 </div>
               ) : goals.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-4xl mb-3">🎯</div>
-                  <p className="text-zinc-400 text-sm">
-                    No goals for today yet. Add one above!
+                <div className="text-center py-10 px-6">
+                  <p className="text-zinc-500 text-sm">
+                    No goals for today yet. Add one above.
                   </p>
                 </div>
               ) : (
-                <ul className="space-y-2">
+                <ul className="divide-y divide-zinc-800">
                   {goals.map((goal) => (
                     <li
                       key={goal.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl transition-all group ${
-                        goal.completed
-                          ? "bg-green-950/20 border border-green-900/30"
-                          : "bg-zinc-950/50 border border-zinc-800/50"
+                      className={`flex items-center gap-3 px-6 py-3 transition-all group ${
+                        goal.completed ? "" : "hover:bg-zinc-800/20"
                       }`}
                     >
                       <button
                         onClick={() => handleToggle(goal)}
-                        className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        className={`flex-shrink-0 w-4 h-4 border flex items-center justify-center transition-all rounded-none ${
                           goal.completed
-                            ? "bg-green-500 border-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
-                            : "border-zinc-600 hover:border-indigo-400"
+                            ? "bg-emerald-400 border-emerald-400"
+                            : "border-zinc-600 hover:border-zinc-400"
                         }`}
                       >
                         {goal.completed && (
                           <svg
-                            className="w-3 h-3 text-white"
+                            className="w-2.5 h-2.5 text-zinc-950"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -332,7 +329,7 @@ export default function DashboardPage() {
                       <span
                         className={`flex-1 text-sm transition-all ${
                           goal.completed
-                            ? "line-through text-zinc-500"
+                            ? "line-through text-zinc-500 text-emerald-400/60"
                             : "text-zinc-100"
                         }`}
                       >
@@ -341,22 +338,10 @@ export default function DashboardPage() {
 
                       <button
                         onClick={() => handleDelete(goal.id)}
-                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all p-1 rounded"
+                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all text-sm px-1"
                         aria-label="Delete goal"
                       >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
+                        ×
                       </button>
                     </li>
                   ))}
@@ -366,67 +351,69 @@ export default function DashboardPage() {
           </div>
 
           {/* Right column: weekly summary */}
-          <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-zinc-50 font-bold tracking-tight mb-4">
-                Last 7 Days
-              </h2>
+          <div className="space-y-0 mt-6 lg:mt-0">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-none mb-px">
+              <div className="px-6 py-4 border-b border-zinc-800">
+                <p className="text-xs tracking-widest text-zinc-500 uppercase">Last 7 Days</p>
+              </div>
 
-              {weekBars.length === 0 ? (
-                <div className="text-zinc-500 text-sm">Loading...</div>
-              ) : (
-                <div className="space-y-3">
-                  {weekBars.map((day) => {
-                    const isToday = day.date === today;
-                    const barCol =
-                      day.score >= 80
-                        ? "bg-green-500"
-                        : day.score >= 50
-                          ? "bg-yellow-500"
-                          : day.score > 0
-                            ? "bg-red-500"
-                            : "bg-zinc-700";
+              <div className="p-6">
+                {weekBars.length === 0 ? (
+                  <div className="text-zinc-600 text-sm font-mono">Loading...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {weekBars.map((day) => {
+                      const isToday = day.date === today;
+                      const barCol =
+                        day.score >= 80
+                          ? "bg-emerald-400"
+                          : day.score >= 50
+                            ? "bg-yellow-500"
+                            : day.score > 0
+                              ? "bg-red-500"
+                              : "bg-zinc-700";
 
-                    return (
-                      <div key={day.date} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`text-xs font-medium ${
-                              isToday ? "text-indigo-400" : "text-zinc-400"
-                            }`}
-                          >
-                            {day.label}
-                            {isToday && (
-                              <span className="ml-1 text-zinc-500">(today)</span>
-                            )}
-                          </span>
-                          <span className="text-xs text-zinc-500">
-                            {day.set > 0 ? `${day.score}%` : "—"}
-                          </span>
+                      return (
+                        <div key={day.date} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`text-xs font-mono uppercase tracking-wide ${
+                                isToday ? "text-emerald-400" : "text-zinc-500"
+                              }`}
+                            >
+                              {day.label}
+                              {isToday && (
+                                <span className="ml-1 text-zinc-600 normal-case tracking-normal">(today)</span>
+                              )}
+                            </span>
+                            <span className="text-xs text-zinc-600 font-mono">
+                              {day.set > 0 ? `${day.score}%` : "—"}
+                            </span>
+                          </div>
+                          <div className="w-full bg-zinc-800 rounded-none h-1 overflow-hidden">
+                            <div
+                              className={`h-1 rounded-none transition-all duration-500 ${barCol}`}
+                              style={{ width: `${day.score}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                          <div
-                            className={`h-2 rounded-full transition-all duration-500 ${barCol}`}
-                            style={{ width: `${day.score}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Quick stats */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-zinc-50 font-bold tracking-tight mb-4">
-                7-Day Stats
-              </h2>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-none">
+              <div className="px-6 py-4 border-b border-zinc-800">
+                <p className="text-xs tracking-widest text-zinc-500 uppercase">7-Day Stats</p>
+              </div>
               {weekBars.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-400 text-sm">Avg score</span>
-                    <span className="text-zinc-50 text-sm font-bold">
+                <div className="divide-y divide-zinc-800">
+                  <div className="flex justify-between items-center px-6 py-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wide">Avg score</span>
+                    <span className="text-zinc-100 text-sm font-bold font-mono">
                       {weekBars.filter((d) => d.set > 0).length > 0
                         ? Math.round(
                             weekBars
@@ -438,15 +425,15 @@ export default function DashboardPage() {
                       %
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-400 text-sm">Active days</span>
-                    <span className="text-zinc-50 text-sm font-bold">
+                  <div className="flex justify-between items-center px-6 py-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wide">Active days</span>
+                    <span className="text-zinc-100 text-sm font-bold font-mono">
                       {weekBars.filter((d) => d.set > 0).length}/7
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-400 text-sm">Goals done</span>
-                    <span className="text-zinc-50 text-sm font-bold">
+                  <div className="flex justify-between items-center px-6 py-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wide">Goals done</span>
+                    <span className="text-zinc-100 text-sm font-bold font-mono">
                       {weekBars.reduce((sum, d) => sum + d.completed, 0)}/
                       {weekBars.reduce((sum, d) => sum + d.set, 0)}
                     </span>
