@@ -1,7 +1,5 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export interface WeeklyReportData {
   weekStart: string;
   weekEnd: string;
@@ -170,6 +168,8 @@ export async function sendWeeklyReport(
 </body>
 </html>
   `;
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   await resend.emails.send({
     from: process.env.EMAIL_FROM ?? "noreply@lockintracker.com",
