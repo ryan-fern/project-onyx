@@ -3,8 +3,8 @@ import { prisma } from "@/lib/db";
 import { sendWeeklyReport, WeeklyReportData } from "@/lib/email";
 import { format, subDays, startOfWeek, endOfWeek } from "date-fns";
 
-export async function POST(req: NextRequest) {
-  // Verify cron secret
+// Vercel Cron calls this as GET with Authorization: Bearer CRON_SECRET
+export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const expectedSecret = process.env.CRON_SECRET;
 
