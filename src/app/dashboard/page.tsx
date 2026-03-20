@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { format, subDays } from "date-fns";
+import { format, addMonths, startOfMonth, getDay, parseISO } from "date-fns";
 import { toast } from "sonner";
 import NavBar from "@/components/NavBar";
 
@@ -14,32 +14,12 @@ interface Goal {
   completed: boolean;
 }
 
-interface DayBar {
+interface CalendarDay {
   date: string;
-  label: string;
-  score: number;
-  set: number;
   completed: number;
-}
-
-function ScoreBar({ value }: { value: number }) {
-  const color =
-    value >= 80
-      ? "bg-emerald-400"
-      : value >= 50
-        ? "bg-yellow-500"
-        : value > 0
-          ? "bg-red-500"
-          : "bg-zinc-700";
-
-  return (
-    <div className="w-full bg-zinc-800 rounded-none h-1 overflow-hidden">
-      <div
-        className={`h-1 rounded-none transition-all duration-500 ${color}`}
-        style={{ width: `${value}%` }}
-      />
-    </div>
-  );
+  total: number;
+  score: number | null;
+  isFuture: boolean;
 }
 
 export default function DashboardPage() {
@@ -51,7 +31,10 @@ export default function DashboardPage() {
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [loadingGoals, setLoadingGoals] = useState(true);
   const [addingGoal, setAddingGoal] = useState(false);
-  const [weekBars, setWeekBars] = useState<DayBar[]>([]);
+  const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [hoveredDay, setHoveredDay] = useState<CalendarDay | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
 
@@ -75,35 +58,26 @@ export default function DashboardPage() {
     }
   }, [today]);
 
-  const fetchWeekBars = useCallback(async () => {
-    const days: DayBar[] = [];
-    const fetches = Array.from({ length: 7 }, (_, i) => {
-      const d = subDays(new Date(), 6 - i);
-      const dateStr = format(d, "yyyy-MM-dd");
-      const label = format(d, "EEE");
-      return fetch(`/api/goals?date=${dateStr}`)
-        .then((r) => r.json())
-        .then((goalsForDay: Goal[]) => {
-          const set = goalsForDay.length;
-          const completed = goalsForDay.filter((g) => g.completed).length;
-          const score = set > 0 ? Math.round((completed / set) * 100) : 0;
-          days.push({ date: dateStr, label, score, set, completed });
-        })
-        .catch(() => {
-          days.push({ date: dateStr, label, score: 0, set: 0, completed: 0 });
-        });
-    });
-    await Promise.all(fetches);
-    days.sort((a, b) => a.date.localeCompare(b.date));
-    setWeekBars(days);
+  const fetchCalendar = useCallback(async (month: Date) => {
+    setCalendarLoading(true);
+    try {
+      const res = await fetch(`/api/profile?month=${format(month, "yyyy-MM")}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setCalendarDays(data.days);
+    } catch {
+      // silent — calendar is non-critical
+    } finally {
+      setCalendarLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     if (status === "authenticated") {
       fetchGoals();
-      fetchWeekBars();
+      fetchCalendar(calendarMonth);
     }
-  }, [status, fetchGoals, fetchWeekBars]);
+  }, [status, fetchGoals, fetchCalendar, calendarMonth]);
 
   async function handleAddGoal(e: React.FormEvent) {
     e.preventDefault();
@@ -121,7 +95,7 @@ export default function DashboardPage() {
       setNewGoalTitle("");
       toast.success("Goal added.");
       fetchGoals();
-      fetchWeekBars();
+      fetchCalendar(calendarMonth);
     } catch {
       toast.error("Failed to add goal.");
     } finally {
@@ -144,7 +118,7 @@ export default function DashboardPage() {
       });
       if (!res.ok) throw new Error("Failed to update goal");
       toast.success(newCompleted ? "Goal completed!" : "Goal unchecked.");
-      fetchWeekBars();
+      fetchCalendar(calendarMonth);
     } catch {
       setGoals(goals); // revert
       toast.error("Failed to update goal.");
@@ -188,7 +162,7 @@ export default function DashboardPage() {
       const res = await fetch(`/api/goals/${goalId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete goal");
       toast.success("Goal removed.");
-      fetchWeekBars();
+      fetchCalendar(calendarMonth);
     } catch {
       setGoals(prev);
       toast.error("Failed to delete goal.");
@@ -388,96 +362,108 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Right column: weekly summary */}
-          <div className="space-y-0 mt-6 lg:mt-0">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-none mb-px">
-              <div className="px-6 py-4 border-b border-zinc-800">
-                <p className="text-xs tracking-widest text-zinc-500 uppercase">Last 7 Days</p>
+          {/* Right column: calendar */}
+          <div className="mt-6 lg:mt-0">
+            <div className="bg-zinc-900 border border-zinc-800">
+              {/* Month nav */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+                <button
+                  onClick={() => setCalendarMonth((m) => addMonths(m, -1))}
+                  className="text-zinc-400 hover:text-zinc-100 text-xs font-mono px-2 py-1 border border-zinc-800 hover:border-zinc-600 transition-colors"
+                >
+                  ←
+                </button>
+                <span className="text-zinc-300 text-xs font-mono uppercase tracking-widest">
+                  {format(calendarMonth, "MMM yyyy")}
+                </span>
+                <button
+                  onClick={() => {
+                    const next = addMonths(calendarMonth, 1);
+                    if (next <= new Date()) setCalendarMonth(next);
+                  }}
+                  disabled={addMonths(calendarMonth, 1) > new Date()}
+                  className="text-zinc-400 hover:text-zinc-100 disabled:text-zinc-700 disabled:cursor-not-allowed text-xs font-mono px-2 py-1 border border-zinc-800 hover:border-zinc-600 disabled:border-zinc-900 transition-colors"
+                >
+                  →
+                </button>
               </div>
 
-              <div className="p-6">
-                {weekBars.length === 0 ? (
-                  <div className="text-zinc-600 text-sm font-mono">Loading...</div>
+              <div className="p-4">
+                {/* Day headers */}
+                <div className="grid grid-cols-7 mb-1">
+                  {["S","M","T","W","T","F","S"].map((d, i) => (
+                    <div key={i} className="text-center text-zinc-700 text-xs font-mono py-1">{d}</div>
+                  ))}
+                </div>
+
+                {calendarLoading ? (
+                  <div className="text-center py-8 text-zinc-700 text-xs font-mono">Loading...</div>
                 ) : (
-                  <div className="space-y-4">
-                    {weekBars.map((day) => {
+                  <div className="grid grid-cols-7 gap-0.5">
+                    {Array.from({ length: getDay(startOfMonth(calendarMonth)) }).map((_, i) => (
+                      <div key={`blank-${i}`} />
+                    ))}
+                    {calendarDays.map((day) => {
+                      const dayNum = parseInt(day.date.split("-")[2]);
                       const isToday = day.date === today;
-                      const barCol =
-                        day.score >= 80
-                          ? "bg-emerald-400"
-                          : day.score >= 50
-                            ? "bg-yellow-500"
-                            : day.score > 0
-                              ? "bg-red-500"
-                              : "bg-zinc-700";
+                      const bg =
+                        day.isFuture || day.score === null ? "bg-zinc-900 border-zinc-800" :
+                        day.score >= 80 ? "bg-emerald-500 border-emerald-400" :
+                        day.score >= 50 ? "bg-yellow-500 border-yellow-400" :
+                        day.score > 0  ? "bg-red-500 border-red-400" :
+                        "bg-zinc-800 border-zinc-700";
+                      const text =
+                        day.isFuture || day.score === null ? "text-zinc-700" :
+                        day.score === 0 ? "text-zinc-500" : "text-zinc-950";
 
                       return (
-                        <div key={day.date} className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={`text-xs font-mono uppercase tracking-wide ${
-                                isToday ? "text-emerald-400" : "text-zinc-500"
-                              }`}
-                            >
-                              {day.label}
-                              {isToday && (
-                                <span className="ml-1 text-zinc-600 normal-case tracking-normal">(today)</span>
-                              )}
-                            </span>
-                            <span className="text-xs text-zinc-600 font-mono">
-                              {day.set > 0 ? `${day.score}%` : "—"}
-                            </span>
-                          </div>
-                          <div className="w-full bg-zinc-800 rounded-none h-1 overflow-hidden">
-                            <div
-                              className={`h-1 rounded-none transition-all duration-500 ${barCol}`}
-                              style={{ width: `${day.score}%` }}
-                            />
-                          </div>
+                        <div
+                          key={day.date}
+                          onMouseEnter={() => setHoveredDay(day)}
+                          onMouseLeave={() => setHoveredDay(null)}
+                          className={`aspect-square flex items-center justify-center border text-xs font-mono cursor-default transition-opacity ${bg} ${text} ${isToday ? "ring-1 ring-white ring-offset-1 ring-offset-zinc-900" : ""}`}
+                        >
+                          {dayNum}
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* Quick stats */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-none">
-              <div className="px-6 py-4 border-b border-zinc-800">
-                <p className="text-xs tracking-widest text-zinc-500 uppercase">7-Day Stats</p>
-              </div>
-              {weekBars.length > 0 && (
-                <div className="divide-y divide-zinc-800">
-                  <div className="flex justify-between items-center px-6 py-3">
-                    <span className="text-zinc-500 text-xs uppercase tracking-wide">Avg score</span>
-                    <span className="text-zinc-100 text-sm font-bold font-mono">
-                      {weekBars.filter((d) => d.set > 0).length > 0
-                        ? Math.round(
-                            weekBars
-                              .filter((d) => d.set > 0)
-                              .reduce((sum, d) => sum + d.score, 0) /
-                              weekBars.filter((d) => d.set > 0).length
-                          )
-                        : 0}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center px-6 py-3">
-                    <span className="text-zinc-500 text-xs uppercase tracking-wide">Active days</span>
-                    <span className="text-zinc-100 text-sm font-bold font-mono">
-                      {weekBars.filter((d) => d.set > 0).length}/7
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center px-6 py-3">
-                    <span className="text-zinc-500 text-xs uppercase tracking-wide">Goals done</span>
-                    <span className="text-zinc-100 text-sm font-bold font-mono">
-                      {weekBars.reduce((sum, d) => sum + d.completed, 0)}/
-                      {weekBars.reduce((sum, d) => sum + d.set, 0)}
-                    </span>
-                  </div>
+                {/* Hover tooltip */}
+                <div className="mt-3 h-6 flex items-center">
+                  {hoveredDay && !hoveredDay.isFuture && hoveredDay.score !== null ? (
+                    <p className="text-xs font-mono text-zinc-400">
+                      <span className="text-zinc-200">{format(parseISO(hoveredDay.date), "MMM d")}</span>
+                      {" — "}
+                      {hoveredDay.completed}/{hoveredDay.total}
+                      {" — "}
+                      <span className={
+                        hoveredDay.score >= 80 ? "text-emerald-400" :
+                        hoveredDay.score >= 50 ? "text-yellow-400" :
+                        hoveredDay.score > 0 ? "text-red-400" : "text-zinc-500"
+                      }>{hoveredDay.score}%</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs font-mono text-zinc-700">Hover a day for details</p>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-3 px-4 py-3 border-t border-zinc-800 flex-wrap">
+                {[
+                  { color: "bg-emerald-500", label: "≥80%" },
+                  { color: "bg-yellow-500", label: "50–79%" },
+                  { color: "bg-red-500", label: "<50%" },
+                  { color: "bg-zinc-800", label: "0%" },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-1">
+                    <div className={`w-2.5 h-2.5 ${color}`} />
+                    <span className="text-zinc-600 text-xs font-mono">{label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
