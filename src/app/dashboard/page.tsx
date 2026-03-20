@@ -52,6 +52,8 @@ export default function DashboardPage() {
   const [loadingGoals, setLoadingGoals] = useState(true);
   const [addingGoal, setAddingGoal] = useState(false);
   const [weekBars, setWeekBars] = useState<DayBar[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -146,6 +148,35 @@ export default function DashboardPage() {
     } catch {
       setGoals(goals); // revert
       toast.error("Failed to update goal.");
+    }
+  }
+
+  function startEdit(goal: Goal) {
+    setEditingId(goal.id);
+    setEditingTitle(goal.title);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingTitle("");
+  }
+
+  async function handleRename(goalId: string) {
+    const trimmed = editingTitle.trim();
+    if (!trimmed) { cancelEdit(); return; }
+    const prev = goals;
+    setGoals((g) => g.map((x) => x.id === goalId ? { ...x, title: trimmed } : x));
+    setEditingId(null);
+    try {
+      const res = await fetch(`/api/goals/${goalId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setGoals(prev);
+      toast.error("Failed to rename goal.");
     }
   }
 
@@ -302,39 +333,54 @@ export default function DashboardPage() {
                         }`}
                       >
                         {goal.completed && (
-                          <svg
-                            className="w-2.5 h-2.5 text-zinc-950"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={3}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M5 13l4 4L19 7"
-                            />
+                          <svg className="w-2.5 h-2.5 text-zinc-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
                         )}
                       </button>
 
-                      <span
-                        className={`flex-1 text-sm transition-all ${
-                          goal.completed
-                            ? "line-through text-zinc-500 text-emerald-400/60"
-                            : "text-zinc-100"
-                        }`}
-                      >
-                        {goal.title}
-                      </span>
+                      {editingId === goal.id ? (
+                        <input
+                          autoFocus
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={() => handleRename(goal.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRename(goal.id);
+                            if (e.key === "Escape") cancelEdit();
+                          }}
+                          className="flex-1 bg-zinc-950 border border-zinc-600 text-zinc-50 rounded-sm px-2 py-0.5 text-sm focus:outline-none focus:border-zinc-400"
+                        />
+                      ) : (
+                        <span
+                          className={`flex-1 text-sm transition-all ${
+                            goal.completed
+                              ? "line-through text-zinc-500"
+                              : "text-zinc-100"
+                          }`}
+                        >
+                          {goal.title}
+                        </span>
+                      )}
 
-                      <button
-                        onClick={() => handleDelete(goal.id)}
-                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all text-sm px-1"
-                        aria-label="Delete goal"
-                      >
-                        ×
-                      </button>
+                      {editingId !== goal.id && (
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all">
+                          <button
+                            onClick={() => startEdit(goal)}
+                            className="text-zinc-600 hover:text-zinc-300 text-xs px-1 font-mono"
+                            aria-label="Edit goal"
+                          >
+                            edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(goal.id)}
+                            className="text-zinc-600 hover:text-red-400 text-sm px-1"
+                            aria-label="Delete goal"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

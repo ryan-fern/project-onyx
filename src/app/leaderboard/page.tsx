@@ -1,78 +1,71 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import NavBar from "@/components/NavBar";
 
-interface LeaderboardEntry {
+interface StreakEntry {
+  id: string;
+  name: string;
+  email: string;
+  streak: number;
+  rank: number;
+  isCurrentUser: boolean;
+}
+
+interface PercentageEntry {
   id: string;
   name: string;
   email: string;
   score: number;
+  locked: boolean;
+  daysUntilUnlock: number;
   goalsSet: number;
   goalsCompleted: number;
   rank: number;
   isCurrentUser: boolean;
 }
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-const avatarColors = [
-  "bg-indigo-600",
-  "bg-violet-600",
-  "bg-blue-600",
-  "bg-pink-600",
-  "bg-orange-600",
-  "bg-teal-600",
-];
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return avatarColors[Math.abs(hash) % avatarColors.length];
-}
+type Tab = "streak" | "percentage";
 
 export default function LeaderboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [tab, setTab] = useState<Tab>("streak");
+  const [streakEntries, setStreakEntries] = useState<StreakEntry[]>([]);
+  const [pctEntries, setPctEntries] = useState<PercentageEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
+    if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
+
+  const fetchLeaderboard = useCallback(async (type: Tab) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/leaderboard?type=${type}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (type === "streak") setStreakEntries(data);
+      else setPctEntries(data);
+    } catch {
+      toast.error("Failed to load leaderboard.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (status !== "authenticated") return;
+    fetchLeaderboard("streak");
+    fetchLeaderboard("percentage");
+  }, [status, fetchLeaderboard]);
 
-    async function fetchLeaderboard() {
-      try {
-        const res = await fetch("/api/leaderboard");
-        if (!res.ok) throw new Error("Failed to fetch leaderboard");
-        const data: LeaderboardEntry[] = await res.json();
-        setEntries(data);
-      } catch {
-        toast.error("Failed to load leaderboard.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchLeaderboard();
-  }, [status]);
+  function handleTabChange(t: Tab) {
+    setTab(t);
+  }
 
   if (status === "loading" || status === "unauthenticated") {
     return (
@@ -82,135 +75,238 @@ export default function LeaderboardPage() {
     );
   }
 
-  const hasFriends = entries.length > 1;
-
   return (
     <div className="min-h-screen bg-zinc-950">
       <NavBar />
 
       <main className="max-w-2xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <h1 className="text-xs tracking-widest text-zinc-50 uppercase font-mono font-bold">
+        <div className="mb-6">
+          <h1 className="text-xs tracking-widest text-zinc-50 uppercase font-mono font-bold mb-4">
             Leaderboard
           </h1>
-          <span className="border border-zinc-700 text-zinc-500 text-xs px-2 py-0.5 font-mono uppercase tracking-wide">
-            Trailing 7 Days
-          </span>
+
+          {/* Tabs */}
+          <div className="flex border-b border-zinc-800">
+            <button
+              onClick={() => handleTabChange("streak")}
+              className={`px-4 py-2 text-xs font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+                tab === "streak"
+                  ? "border-white text-white"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              Streaks
+            </button>
+            <button
+              onClick={() => handleTabChange("percentage")}
+              className={`px-4 py-2 text-xs font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px ${
+                tab === "percentage"
+                  ? "border-white text-white"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              % Score
+            </button>
+          </div>
         </div>
 
         {loading ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-none p-8 text-center text-zinc-500 text-sm font-mono">
-            Loading leaderboard...
+          <div className="bg-zinc-900 border border-zinc-800 p-8 text-center text-zinc-500 text-sm font-mono">
+            Loading...
           </div>
-        ) : !hasFriends ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-none p-8">
-            <p className="text-zinc-300 font-semibold mb-1">
-              Add friends to compete.
-            </p>
-            <p className="text-zinc-500 text-sm mb-6">
-              The leaderboard shows you and your friends&apos; trailing 7-day lock-in
-              scores. Add some friends to get the competition going.
-            </p>
-            <button
-              onClick={() => router.push("/friends")}
-              className="bg-white text-zinc-950 px-5 py-2 rounded-sm text-sm font-semibold transition-colors hover:bg-zinc-200"
-            >
-              Find Friends
-            </button>
-
-            {/* Still show current user */}
-            {entries.length === 1 && (
-              <div className="mt-6 pt-6 border-t border-zinc-800">
-                <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3 font-mono">Your current score</p>
-                <LeaderboardRow entry={entries[0]} />
-              </div>
-            )}
-          </div>
+        ) : tab === "streak" ? (
+          <StreakLeaderboard entries={streakEntries} />
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-none overflow-hidden">
-            <div className="divide-y divide-zinc-800">
-              {entries.map((entry) => (
-                <LeaderboardRow key={entry.id} entry={entry} />
-              ))}
-            </div>
-          </div>
+          <PercentageLeaderboard entries={pctEntries} currentUserId={session?.user?.id} />
         )}
 
-        {session && (
-          <p className="text-zinc-700 text-xs mt-6 font-mono">
-            Scores are based on goals completed / goals set over the last 7 days
-          </p>
-        )}
+        <p className="text-zinc-700 text-xs mt-4 font-mono">
+          {tab === "streak"
+            ? "Streak = consecutive days with 100% of goals completed."
+            : "% Score = goals completed / goals set over trailing 7 days. Unlocks after 7 days of use."}
+        </p>
       </main>
     </div>
   );
 }
 
-function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
-  const scoreColor =
-    entry.score >= 80
-      ? "text-emerald-400"
-      : entry.score >= 50
-        ? "text-yellow-400"
-        : entry.score > 0
-          ? "text-red-400"
-          : "text-zinc-500";
-
-  const barColor =
-    entry.score >= 80
-      ? "bg-emerald-400"
-      : entry.score >= 50
-        ? "bg-yellow-500"
-        : entry.score > 0
-          ? "bg-red-500"
-          : "bg-zinc-700";
+function StreakLeaderboard({ entries }: { entries: StreakEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 p-8 text-center text-zinc-500 text-sm">
+        No data yet.
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`flex items-center gap-4 px-6 py-4 transition-colors ${
-        entry.isCurrentUser
-          ? "border-l-2 border-l-emerald-400"
-          : "hover:bg-zinc-800/30"
-      }`}
-    >
-      {/* Rank */}
-      <div className="w-8 text-center flex-shrink-0">
-        <span className="text-zinc-500 text-sm font-bold font-mono">#{entry.rank}</span>
-      </div>
+    <div className="bg-zinc-900 border border-zinc-800 overflow-hidden">
+      <div className="divide-y divide-zinc-800">
+        {entries.map((entry) => {
+          const streakColor =
+            entry.streak >= 7
+              ? "text-emerald-400"
+              : entry.streak >= 3
+                ? "text-yellow-400"
+                : entry.streak > 0
+                  ? "text-zinc-100"
+                  : "text-zinc-600";
 
-      {/* Name + bar */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-sm font-semibold truncate ${
-              entry.isCurrentUser ? "text-emerald-400" : "text-zinc-100"
-            }`}
-          >
-            {entry.name}
-          </span>
-          {entry.isCurrentUser && (
-            <span className="text-zinc-500 text-xs border border-zinc-700 px-1.5 py-0.5 rounded-none flex-shrink-0 font-mono uppercase tracking-wide">
-              you
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-1.5">
-          <div className="flex-1 bg-zinc-800 rounded-none h-0.5 overflow-hidden">
+          return (
             <div
-              className={`h-0.5 rounded-none transition-all duration-700 ${barColor}`}
-              style={{ width: `${entry.score}%` }}
-            />
-          </div>
-          <span className="text-zinc-600 text-xs flex-shrink-0 font-mono">
-            {entry.goalsCompleted}/{entry.goalsSet}
-          </span>
-        </div>
-      </div>
+              key={entry.id}
+              className={`flex items-center gap-4 px-6 py-4 ${
+                entry.isCurrentUser
+                  ? "border-l-2 border-l-emerald-400"
+                  : "hover:bg-zinc-800/30"
+              }`}
+            >
+              <div className="w-8 flex-shrink-0">
+                <span className="text-zinc-500 text-sm font-mono">#{entry.rank}</span>
+              </div>
 
-      {/* Score */}
-      <div className={`text-lg font-bold flex-shrink-0 font-mono ${scoreColor}`}>
-        {entry.score}%
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-semibold truncate ${entry.isCurrentUser ? "text-emerald-400" : "text-zinc-100"}`}>
+                    {entry.name}
+                  </span>
+                  {entry.isCurrentUser && (
+                    <span className="text-zinc-500 text-xs border border-zinc-700 px-1.5 py-0.5 font-mono uppercase tracking-wide flex-shrink-0">
+                      you
+                    </span>
+                  )}
+                </div>
+                <p className="text-zinc-600 text-xs font-mono mt-0.5">{entry.email}</p>
+              </div>
+
+              <div className={`text-right flex-shrink-0 ${streakColor}`}>
+                <div className="text-2xl font-bold font-mono">{entry.streak}</div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wide">
+                  {entry.streak === 1 ? "day" : "days"}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PercentageLeaderboard({
+  entries,
+  currentUserId,
+}: {
+  entries: PercentageEntry[];
+  currentUserId?: string;
+}) {
+  if (entries.length === 0) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 p-8 text-center text-zinc-500 text-sm">
+        No data yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 overflow-hidden">
+      <div className="divide-y divide-zinc-800">
+        {entries.map((entry) => {
+          const isCurrentUser = entry.id === currentUserId;
+
+          if (entry.locked) {
+            return (
+              <div
+                key={entry.id}
+                className={`flex items-center gap-4 px-6 py-4 opacity-50 ${
+                  isCurrentUser ? "border-l-2 border-l-zinc-600" : ""
+                }`}
+              >
+                <div className="w-8 flex-shrink-0">
+                  <span className="text-zinc-600 text-sm font-mono">—</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-zinc-500 truncate">{entry.name}</span>
+                    {isCurrentUser && (
+                      <span className="text-zinc-600 text-xs border border-zinc-700 px-1.5 py-0.5 font-mono uppercase tracking-wide flex-shrink-0">
+                        you
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-zinc-700 text-xs font-mono mt-0.5">
+                    Unlocks in {entry.daysUntilUnlock} {entry.daysUntilUnlock === 1 ? "day" : "days"}
+                  </p>
+                </div>
+                <div className="text-zinc-600 text-xs font-mono uppercase tracking-wide">
+                  Locked
+                </div>
+              </div>
+            );
+          }
+
+          const scoreColor =
+            entry.score >= 80
+              ? "text-emerald-400"
+              : entry.score >= 50
+                ? "text-yellow-400"
+                : entry.score > 0
+                  ? "text-red-400"
+                  : "text-zinc-500";
+
+          const barColor =
+            entry.score >= 80
+              ? "bg-emerald-400"
+              : entry.score >= 50
+                ? "bg-yellow-500"
+                : entry.score > 0
+                  ? "bg-red-500"
+                  : "bg-zinc-700";
+
+          return (
+            <div
+              key={entry.id}
+              className={`flex items-center gap-4 px-6 py-4 ${
+                isCurrentUser
+                  ? "border-l-2 border-l-emerald-400"
+                  : "hover:bg-zinc-800/30"
+              }`}
+            >
+              <div className="w-8 flex-shrink-0">
+                <span className="text-zinc-500 text-sm font-mono">#{entry.rank}</span>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-semibold truncate ${isCurrentUser ? "text-emerald-400" : "text-zinc-100"}`}>
+                    {entry.name}
+                  </span>
+                  {isCurrentUser && (
+                    <span className="text-zinc-500 text-xs border border-zinc-700 px-1.5 py-0.5 font-mono uppercase tracking-wide flex-shrink-0">
+                      you
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex-1 bg-zinc-800 h-0.5 overflow-hidden">
+                    <div
+                      className={`h-0.5 transition-all duration-700 ${barColor}`}
+                      style={{ width: `${entry.score}%` }}
+                    />
+                  </div>
+                  <span className="text-zinc-600 text-xs flex-shrink-0 font-mono">
+                    {entry.goalsCompleted}/{entry.goalsSet}
+                  </span>
+                </div>
+              </div>
+
+              <div className={`text-lg font-bold flex-shrink-0 font-mono ${scoreColor}`}>
+                {entry.score}%
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

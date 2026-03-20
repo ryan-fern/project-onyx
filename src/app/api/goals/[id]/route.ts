@@ -25,14 +25,26 @@ export async function PATCH(
 
   try {
     const body = await req.json();
-    const { date, completed } = body as {
+    const { date, completed, title } = body as {
       date?: string;
       completed?: boolean;
+      title?: string;
     };
 
+    // Title rename
+    if (typeof title === "string") {
+      const trimmed = title.trim();
+      if (!trimmed) {
+        return NextResponse.json({ error: "Title cannot be empty." }, { status: 400 });
+      }
+      const updated = await prisma.goal.update({ where: { id }, data: { title: trimmed } });
+      return NextResponse.json(updated);
+    }
+
+    // Completion toggle
     if (typeof completed !== "boolean" || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json(
-        { error: "date (YYYY-MM-DD) and completed (boolean) are required." },
+        { error: "Provide title for rename, or date + completed for completion toggle." },
         { status: 400 }
       );
     }
