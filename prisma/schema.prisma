@@ -17,6 +17,7 @@ model User {
 
   goals       Goal[]
   completions DailyCompletion[]
+  goalCounts  DailyGoalCount[]
 }
 
 model Goal {
@@ -42,5 +43,18 @@ model DailyCompletion {
   createdAt DateTime @default(now())
 
   @@unique([goalId, date])
+  @@index([userId, date])
+}
+
+model DailyGoalCount {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String   // YYYY-MM-DD
+  count     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
   @@index([userId, date])
 }

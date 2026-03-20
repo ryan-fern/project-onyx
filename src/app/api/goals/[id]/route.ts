@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { format } from "date-fns";
 
 export async function PATCH(
   req: NextRequest,
@@ -61,6 +62,14 @@ export async function PATCH(
       });
     }
 
+    const today = format(new Date(), "yyyy-MM-dd");
+    const activeCount = await prisma.goal.count({ where: { userId, active: true } });
+    await prisma.dailyGoalCount.upsert({
+      where: { userId_date: { userId, date: today } },
+      create: { userId, date: today, count: activeCount },
+      update: { count: activeCount },
+    });
+
     return NextResponse.json({ id, completed, date });
   } catch (error) {
     console.error("Update goal error:", error);
@@ -92,6 +101,14 @@ export async function DELETE(
   }
 
   await prisma.goal.update({ where: { id }, data: { active: false } });
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const activeCount = await prisma.goal.count({ where: { userId, active: true } });
+  await prisma.dailyGoalCount.upsert({
+    where: { userId_date: { userId, date: today } },
+    create: { userId, date: today, count: activeCount },
+    update: { count: activeCount },
+  });
 
   return NextResponse.json({ success: true });
 }

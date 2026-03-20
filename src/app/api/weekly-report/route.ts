@@ -37,46 +37,89 @@ export async function GET(req: NextRequest) {
 
   for (const user of users) {
     try {
-      // Count active goals for the user
-      const activeGoalCount = await prisma.goal.count({
-        where: { userId: user.id, active: true },
+      // Get DailyGoalCount snapshots for last 7 days
+      const snapshots = await prisma.dailyGoalCount.findMany({
+        where: { userId: user.id, date: { in: last7Dates } },
+        select: { date: true, count: true },
       });
+      const snapshotByDate: Record<string, number> = {};
+      for (const s of snapshots) snapshotByDate[s.date] = s.count;
 
       // Get completions in last 7 days
       const completions = await prisma.dailyCompletion.findMany({
         where: { userId: user.id, date: { in: last7Dates } },
       });
 
-      const goalsSet = activeGoalCount * 7;
-      const goalsCompleted = completions.length;
-      const overallScore =
-        goalsSet > 0 ? Math.min(100, Math.round((goalsCompleted / goalsSet) * 100)) : 0;
+      // Build daily breakdown using snapshots
+      let goalsSet = 0;
+      let goalsCompleted = 0;
 
-      // Daily breakdown: set = active goals count, completed = completions for that day
       const dailyBreakdown = last7Dates.map((date) => {
         const dayCompleted = completions.filter((c) => c.date === date).length;
-        const set = activeGoalCount;
-        const score = set > 0 ? Math.round((dayCompleted / set) * 100) : 0;
+        const snapshotCount = snapshotByDate[date];
+
+        let set: number;
+        let dayScore: number;
+
+        if (snapshotCount !== undefined && snapshotCount > 0) {
+          set = snapshotCount;
+          const clampedCompleted = Math.min(dayCompleted, set);
+          dayScore = Math.round((clampedCompleted / set) * 100);
+          goalsSet += set;
+          goalsCompleted += clampedCompleted;
+        } else if (dayCompleted > 0) {
+          // Legacy: no snapshot but has completions - treat as 100%
+          set = dayCompleted;
+          dayScore = 100;
+          goalsSet += set;
+          goalsCompleted += dayCompleted;
+        } else {
+          // No snapshot, no completions - skip from totals
+          set = 0;
+          dayScore = 0;
+        }
+
         return {
           date: format(new Date(date + "T00:00:00"), "EEE, MMM d"),
           set,
           completed: dayCompleted,
-          score,
+          score: dayScore,
         };
       });
 
-      // Compute leaderboard position among all users
+      const overallScore =
+        goalsSet > 0 ? Math.min(100, Math.round((goalsCompleted / goalsSet) * 100)) : 0;
+
+      // Compute leaderboard position among all users using snapshots
       const allUserScores = await Promise.all(
         users.map(async (u) => {
-          const count = await prisma.goal.count({
-            where: { userId: u.id, active: true },
-          });
-          const completionCount = await prisma.dailyCompletion.count({
+          const uSnapshots = await prisma.dailyGoalCount.findMany({
             where: { userId: u.id, date: { in: last7Dates } },
+            select: { date: true, count: true },
           });
-          const totalSet = count * 7;
-          return totalSet > 0
-            ? Math.min(100, Math.round((completionCount / totalSet) * 100))
+          const uSnapshotByDate: Record<string, number> = {};
+          for (const s of uSnapshots) uSnapshotByDate[s.date] = s.count;
+
+          let uTotalSet = 0;
+          let uTotalCompleted = 0;
+
+          for (const date of last7Dates) {
+            const snap = uSnapshotByDate[date];
+            const dayCount = await prisma.dailyCompletion.count({
+              where: { userId: u.id, date },
+            });
+
+            if (snap !== undefined && snap > 0) {
+              uTotalSet += snap;
+              uTotalCompleted += Math.min(dayCount, snap);
+            } else if (dayCount > 0) {
+              uTotalSet += dayCount;
+              uTotalCompleted += dayCount;
+            }
+          }
+
+          return uTotalSet > 0
+            ? Math.min(100, Math.round((uTotalCompleted / uTotalSet) * 100))
             : 0;
         })
       );

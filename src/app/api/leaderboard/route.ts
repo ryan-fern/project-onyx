@@ -5,26 +5,34 @@ import { prisma } from "@/lib/db";
 import { format, subDays, differenceInDays } from "date-fns";
 
 async function computeStreak(userId: string): Promise<number> {
-  const activeGoalCount = await prisma.goal.count({
-    where: { userId, active: true },
-  });
-  if (activeGoalCount === 0) return 0;
-
   let streak = 0;
   const today = new Date();
 
   for (let i = 0; i < 90; i++) {
     const dateStr = format(subDays(today, i), "yyyy-MM-dd");
-    const count = await prisma.dailyCompletion.count({
-      where: { userId, date: dateStr },
-    });
 
-    if (count >= activeGoalCount) {
+    const [snapshot, completionCount] = await Promise.all([
+      prisma.dailyGoalCount.findUnique({ where: { userId_date: { userId, date: dateStr } } }),
+      prisma.dailyCompletion.count({ where: { userId, date: dateStr } }),
+    ]);
+
+    if (snapshot) {
+      if (completionCount >= snapshot.count && snapshot.count > 0) {
+        streak++;
+      } else if (i === 0) {
+        // Today not yet complete - skip, check yesterday
+        continue;
+      } else {
+        break;
+      }
+    } else if (completionCount > 0) {
+      // Legacy data: has completions but no snapshot - treat as achieved
       streak++;
     } else if (i === 0) {
-      // Today not yet complete — don't break streak, check from yesterday
+      // Today: no snapshot, no completions yet - skip, check yesterday
       continue;
     } else {
+      // No snapshot, no completions - unknown, stop streak
       break;
     }
   }
@@ -55,21 +63,28 @@ async function computePercentage(userId: string, createdAt: Date): Promise<{
     format(subDays(new Date(), i), "yyyy-MM-dd")
   );
 
-  const activeGoalCount = await prisma.goal.count({
-    where: { userId, active: true },
-  });
+  let totalGoalsSet = 0;
+  let totalCompleted = 0;
 
-  const completionsCount = await prisma.dailyCompletion.count({
-    where: { userId, date: { in: dates } },
-  });
+  for (const date of dates) {
+    const [snapshot, completionCount] = await Promise.all([
+      prisma.dailyGoalCount.findUnique({ where: { userId_date: { userId, date } } }),
+      prisma.dailyCompletion.count({ where: { userId, date } }),
+    ]);
 
-  const goalsSet = activeGoalCount * 7;
-  const score =
-    goalsSet > 0
-      ? Math.min(100, Math.round((completionsCount / goalsSet) * 100))
-      : 0;
+    if (snapshot && snapshot.count > 0) {
+      totalGoalsSet += snapshot.count;
+      totalCompleted += Math.min(completionCount, snapshot.count);
+    } else if (completionCount > 0) {
+      // Legacy: count as 100% for that day
+      totalGoalsSet += completionCount;
+      totalCompleted += completionCount;
+    }
+    // If no snapshot and no completions, skip the day entirely (don't penalize)
+  }
 
-  return { score, locked: false, daysUntilUnlock: 0, goalsSet, goalsCompleted: completionsCount };
+  const score = totalGoalsSet > 0 ? Math.min(100, Math.round((totalCompleted / totalGoalsSet) * 100)) : 0;
+  return { score, locked: false, daysUntilUnlock: 0, goalsSet: totalGoalsSet, goalsCompleted: totalCompleted };
 }
 
 export async function GET(req: NextRequest) {

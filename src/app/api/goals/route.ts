@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { format } from "date-fns";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -59,11 +60,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const userId = session.user.id;
+
     const goal = await prisma.goal.create({
       data: {
-        userId: session.user.id,
+        userId,
         title: title.trim(),
       },
+    });
+
+    const today = format(new Date(), "yyyy-MM-dd");
+    const activeCount = await prisma.goal.count({ where: { userId, active: true } });
+    await prisma.dailyGoalCount.upsert({
+      where: { userId_date: { userId, date: today } },
+      create: { userId, date: today, count: activeCount },
+      update: { count: activeCount },
     });
 
     return NextResponse.json(goal, { status: 201 });
