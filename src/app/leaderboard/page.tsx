@@ -86,6 +86,8 @@ export default function LeaderboardPage() {
             Leaderboard
           </h1>
 
+          <p className="text-zinc-500 text-sm mb-4">Want to mog your friends? Don&apos;t lose your streak.</p>
+
           {/* Tabs */}
           <div className="flex border-b border-zinc-800">
             <button
@@ -106,7 +108,7 @@ export default function LeaderboardPage() {
                   : "border-transparent text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              % Score
+              Lock-In Score
             </button>
           </div>
         </div>
@@ -124,7 +126,7 @@ export default function LeaderboardPage() {
         <p className="text-zinc-700 text-xs mt-4 font-mono">
           {tab === "streak"
             ? "Streak = consecutive days with 100% of goals completed."
-            : "% Score = goals completed / goals set over trailing 7 days. Unlocks after 7 days of use."}
+            : "Lock-In Score = goals completed / goals set over trailing 7 days. Unlocks after 7 days of use."}
         </p>
       </main>
     </div>
