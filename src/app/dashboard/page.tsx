@@ -10,7 +10,7 @@ import NavBar from "@/components/NavBar";
 interface Goal {
   id: string;
   title: string;
-  date: string;
+  active: boolean;
   completed: boolean;
 }
 
@@ -47,7 +47,6 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const today = format(new Date(), "yyyy-MM-dd");
-  const [selectedDate] = useState(today);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [loadingGoals, setLoadingGoals] = useState(true);
@@ -60,22 +59,19 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
-  const fetchGoals = useCallback(
-    async (date: string) => {
-      setLoadingGoals(true);
-      try {
-        const res = await fetch(`/api/goals?date=${date}`);
-        if (!res.ok) throw new Error("Failed to fetch goals");
-        const data: Goal[] = await res.json();
-        setGoals(data);
-      } catch {
-        toast.error("Failed to load goals.");
-      } finally {
-        setLoadingGoals(false);
-      }
-    },
-    []
-  );
+  const fetchGoals = useCallback(async () => {
+    setLoadingGoals(true);
+    try {
+      const res = await fetch(`/api/goals?date=${today}`);
+      if (!res.ok) throw new Error("Failed to fetch goals");
+      const data: Goal[] = await res.json();
+      setGoals(data);
+    } catch {
+      toast.error("Failed to load goals.");
+    } finally {
+      setLoadingGoals(false);
+    }
+  }, [today]);
 
   const fetchWeekBars = useCallback(async () => {
     const days: DayBar[] = [];
@@ -102,10 +98,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      fetchGoals(selectedDate);
+      fetchGoals();
       fetchWeekBars();
     }
-  }, [status, selectedDate, fetchGoals, fetchWeekBars]);
+  }, [status, fetchGoals, fetchWeekBars]);
 
   async function handleAddGoal(e: React.FormEvent) {
     e.preventDefault();
@@ -117,13 +113,12 @@ export default function DashboardPage() {
       const res = await fetch("/api/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, date: selectedDate }),
+        body: JSON.stringify({ title }),
       });
       if (!res.ok) throw new Error("Failed to add goal");
-      const created: Goal = await res.json();
-      setGoals((prev) => [...prev, created]);
       setNewGoalTitle("");
       toast.success("Goal added.");
+      fetchGoals();
       fetchWeekBars();
     } catch {
       toast.error("Failed to add goal.");
@@ -133,8 +128,9 @@ export default function DashboardPage() {
   }
 
   async function handleToggle(goal: Goal) {
+    const newCompleted = !goal.completed;
     const optimistic = goals.map((g) =>
-      g.id === goal.id ? { ...g, completed: !g.completed } : g
+      g.id === goal.id ? { ...g, completed: newCompleted } : g
     );
     setGoals(optimistic);
 
@@ -142,14 +138,10 @@ export default function DashboardPage() {
       const res = await fetch(`/api/goals/${goal.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: !goal.completed }),
+        body: JSON.stringify({ date: today, completed: newCompleted }),
       });
       if (!res.ok) throw new Error("Failed to update goal");
-      const updated: Goal = await res.json();
-      setGoals((prev) =>
-        prev.map((g) => (g.id === updated.id ? updated : g))
-      );
-      toast.success(updated.completed ? "Goal completed!" : "Goal unchecked.");
+      toast.success(newCompleted ? "Goal completed!" : "Goal unchecked.");
       fetchWeekBars();
     } catch {
       setGoals(goals); // revert
@@ -261,7 +253,7 @@ export default function DashboardPage() {
                   type="text"
                   value={newGoalTitle}
                   onChange={(e) => setNewGoalTitle(e.target.value)}
-                  placeholder="What do you want to accomplish today?"
+                  placeholder="What do you want to accomplish every day?"
                   className="flex-1 bg-zinc-950 border border-zinc-700 text-zinc-50 placeholder-zinc-600 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-zinc-500 transition-colors"
                 />
                 <button
@@ -289,7 +281,7 @@ export default function DashboardPage() {
               ) : goals.length === 0 ? (
                 <div className="text-center py-10 px-6">
                   <p className="text-zinc-500 text-sm">
-                    No goals for today yet. Add one above.
+                    No goals yet. Add a recurring daily goal above.
                   </p>
                 </div>
               ) : (

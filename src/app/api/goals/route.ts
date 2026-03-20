@@ -19,12 +19,27 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const userId = session.user.id;
+
   const goals = await prisma.goal.findMany({
-    where: { userId: session.user.id, date },
+    where: { userId, active: true },
     orderBy: { createdAt: "asc" },
+    include: {
+      completions: {
+        where: { date },
+      },
+    },
   });
 
-  return NextResponse.json(goals);
+  const result = goals.map((goal) => ({
+    id: goal.id,
+    title: goal.title,
+    active: goal.active,
+    createdAt: goal.createdAt,
+    completed: goal.completions.length > 0,
+  }));
+
+  return NextResponse.json(result);
 }
 
 export async function POST(req: NextRequest) {
@@ -35,18 +50,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { title, date } = body as { title?: string; date?: string };
+    const { title } = body as { title?: string };
 
-    if (!title || !date) {
+    if (!title) {
       return NextResponse.json(
-        { error: "title and date are required." },
-        { status: 400 }
-      );
-    }
-
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json(
-        { error: "date must be YYYY-MM-DD format." },
+        { error: "title is required." },
         { status: 400 }
       );
     }
@@ -55,7 +63,6 @@ export async function POST(req: NextRequest) {
       data: {
         userId: session.user.id,
         title: title.trim(),
-        date,
       },
     });
 

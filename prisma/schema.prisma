@@ -15,9 +15,8 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
-  goals            Goal[]
-  sentRequests     FriendRequest[] @relation("requester")
-  receivedRequests FriendRequest[] @relation("recipient")
+  goals       Goal[]
+  completions DailyCompletion[]
 }
 
 model Goal {
@@ -25,21 +24,23 @@ model Goal {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
-  date      String   // YYYY-MM-DD
-  completed Boolean  @default(false)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  @@index([userId, date])
+  completions DailyCompletion[]
+
+  @@index([userId])
 }
 
-model FriendRequest {
-  id          String   @id @default(cuid())
-  requesterId String
-  requester   User     @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
-  recipientId String
-  recipient   User     @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  status      String   @default("pending") // pending, accepted, rejected
-  createdAt   DateTime @default(now())
+model DailyCompletion {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String   // YYYY-MM-DD
+  createdAt DateTime @default(now())
 
-  @@unique([requesterId, recipientId])
+  @@unique([goalId, date])
+  @@index([userId, date])
 }

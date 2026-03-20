@@ -10,7 +10,6 @@ export default function OnboardingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const today = format(new Date(), "yyyy-MM-dd");
   const [goals, setGoals] = useState<string[]>([""]);
   const [saving, setSaving] = useState(false);
 
@@ -48,7 +47,7 @@ export default function OnboardingPage() {
           fetch("/api/goals", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, date: today }),
+            body: JSON.stringify({ title }),
           })
         )
       );
@@ -79,14 +78,14 @@ export default function OnboardingPage() {
             Welcome, {firstName}.
           </h1>
           <p className="text-zinc-400 text-sm">
-            Set your goals for today and start locking in.
+            Set your recurring daily goals and start locking in.
           </p>
         </div>
 
         {/* Card */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-none p-6">
           <p className="text-xs tracking-widest text-zinc-500 uppercase mb-4">
-            Today&apos;s Goals
+            Your Daily Goals
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">

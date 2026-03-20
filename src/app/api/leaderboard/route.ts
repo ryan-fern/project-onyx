@@ -25,13 +25,20 @@ async function computeSevenDayScore(userId: string): Promise<{
     format(subDays(today, i), "yyyy-MM-dd")
   );
 
-  const goals = await prisma.goal.findMany({
+  // Count active goals for this user
+  const activeGoalCount = await prisma.goal.count({
+    where: { userId, active: true },
+  });
+
+  // Count completions in the last 7 days
+  const completionsCount = await prisma.dailyCompletion.count({
     where: { userId, date: { in: dates } },
   });
 
-  const goalsSet = goals.length;
-  const goalsCompleted = goals.filter((g) => g.completed).length;
-  const score = goalsSet > 0 ? Math.round((goalsCompleted / goalsSet) * 100) : 0;
+  const goalsSet = activeGoalCount * 7;
+  const goalsCompleted = completionsCount;
+  const score =
+    goalsSet > 0 ? Math.min(100, Math.round((goalsCompleted / goalsSet) * 100)) : 0;
 
   return { score, goalsSet, goalsCompleted };
 }
@@ -44,43 +51,14 @@ export async function GET() {
 
   const userId = session.user.id;
 
-  // Get all accepted friend relationships
-  const acceptedRequests = await prisma.friendRequest.findMany({
-    where: {
-      status: "accepted",
-      OR: [{ requesterId: userId }, { recipientId: userId }],
-    },
-    include: {
-      requester: { select: { id: true, name: true, email: true } },
-      recipient: { select: { id: true, name: true, email: true } },
-    },
-  });
-
-  // Collect unique participants (user + all friends)
-  const participantMap = new Map<
-    string,
-    { id: string; name: string; email: string }
-  >();
-
-  // Always include current user
-  const currentUser = await prisma.user.findUnique({
-    where: { id: userId },
+  // Get ALL users
+  const allUsers = await prisma.user.findMany({
     select: { id: true, name: true, email: true },
   });
 
-  if (currentUser) {
-    participantMap.set(currentUser.id, currentUser);
-  }
-
-  for (const req of acceptedRequests) {
-    const friend =
-      req.requesterId === userId ? req.recipient : req.requester;
-    participantMap.set(friend.id, friend);
-  }
-
-  // Compute scores for all participants
+  // Compute scores for all users
   const entries = await Promise.all(
-    Array.from(participantMap.values()).map(async (user) => {
+    allUsers.map(async (user) => {
       const stats = await computeSevenDayScore(user.id);
       return {
         id: user.id,

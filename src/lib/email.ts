@@ -178,3 +178,79 @@ export async function sendWeeklyReport(
     html,
   });
 }
+
+export async function sendDailyReminder(
+  to: string,
+  name: string,
+  appUrl: string
+): Promise<void> {
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time to lock in</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #09090b; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding-bottom: 32px; text-align: center;">
+              <p style="color: #fafafa; font-size: 22px; font-weight: bold; letter-spacing: -0.5px; margin: 0;">Lock In Tracker</p>
+              <p style="color: #71717a; font-size: 13px; margin: 8px 0 0 0; text-transform: uppercase; letter-spacing: 1px;">Daily Reminder</p>
+            </td>
+          </tr>
+
+          <!-- Body card -->
+          <tr>
+            <td style="padding-bottom: 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #18181b; border: 1px solid #27272a;">
+                <tr>
+                  <td style="padding: 32px 24px;">
+                    <p style="color: #fafafa; font-size: 16px; margin: 0 0 8px 0;">Hey ${name},</p>
+                    <p style="color: #a1a1aa; font-size: 14px; margin: 0 0 24px 0; line-height: 1.6;">
+                      Don&apos;t forget to check off your goals today. Every day counts.
+                    </p>
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="background-color: #6366f1; padding: 12px 28px;">
+                          <a href="${appUrl}/dashboard" style="color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; display: block; white-space: nowrap;">Go to Dashboard</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="border-top: 1px solid #27272a; padding-top: 24px; text-align: center;">
+              <p style="color: #52525b; font-size: 12px; margin: 0;">You&apos;re receiving this because you have active goals on Lock In Tracker.</p>
+              <p style="color: #52525b; font-size: 12px; margin: 4px 0 0 0;">To stop receiving these emails, update your notification settings in the app.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM ?? "noreply@lockintracker.com",
+    to,
+    subject: "Time to lock in — check off your goals",
+    html,
+  });
+}

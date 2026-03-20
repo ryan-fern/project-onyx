@@ -13,31 +13,43 @@ export async function PATCH(
   }
 
   const { id } = await params;
+  const userId = session.user.id;
 
   const goal = await prisma.goal.findUnique({ where: { id } });
   if (!goal) {
     return NextResponse.json({ error: "Goal not found." }, { status: 404 });
   }
-  if (goal.userId !== session.user.id) {
+  if (goal.userId !== userId) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
   try {
     const body = await req.json();
-    const { completed, title } = body as {
+    const { date, completed } = body as {
+      date?: string;
       completed?: boolean;
-      title?: string;
     };
 
-    const updated = await prisma.goal.update({
-      where: { id },
-      data: {
-        ...(typeof completed === "boolean" ? { completed } : {}),
-        ...(title !== undefined ? { title: title.trim() } : {}),
-      },
-    });
+    if (typeof completed !== "boolean" || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json(
+        { error: "date (YYYY-MM-DD) and completed (boolean) are required." },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json(updated);
+    if (completed) {
+      await prisma.dailyCompletion.upsert({
+        where: { goalId_date: { goalId: id, date } },
+        create: { goalId: id, userId, date },
+        update: {},
+      });
+    } else {
+      await prisma.dailyCompletion.deleteMany({
+        where: { goalId: id, date },
+      });
+    }
+
+    return NextResponse.json({ id, completed, date });
   } catch (error) {
     console.error("Update goal error:", error);
     return NextResponse.json(
@@ -57,16 +69,17 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  const userId = session.user.id;
 
   const goal = await prisma.goal.findUnique({ where: { id } });
   if (!goal) {
     return NextResponse.json({ error: "Goal not found." }, { status: 404 });
   }
-  if (goal.userId !== session.user.id) {
+  if (goal.userId !== userId) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  await prisma.goal.delete({ where: { id } });
+  await prisma.goal.update({ where: { id }, data: { active: false } });
 
   return NextResponse.json({ success: true });
 }
