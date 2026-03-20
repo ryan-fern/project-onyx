@@ -10,9 +10,6 @@ interface Player {
   id: string;
   name: string;
   email: string;
-  score: number;
-  goalsSet: number;
-  goalsCompleted: number;
 }
 
 export default function FriendsPage() {
@@ -82,15 +79,6 @@ export default function FriendsPage() {
           ) : (
             <div className="divide-y divide-zinc-800">
               {players.map((player) => {
-                const scoreColor =
-                  player.score >= 80
-                    ? "text-emerald-400"
-                    : player.score >= 50
-                      ? "text-yellow-400"
-                      : player.score > 0
-                        ? "text-red-400"
-                        : "text-zinc-500";
-
                 return (
                   <div
                     key={player.id}
@@ -103,33 +91,6 @@ export default function FriendsPage() {
                       <p className="text-zinc-600 text-xs truncate font-mono">
                         {player.email}
                       </p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <div className="w-20 bg-zinc-800 rounded-none h-0.5 overflow-hidden">
-                          <div
-                            className={`h-0.5 rounded-none ${
-                              player.score >= 80
-                                ? "bg-emerald-400"
-                                : player.score >= 50
-                                  ? "bg-yellow-500"
-                                  : player.score > 0
-                                    ? "bg-red-500"
-                                    : "bg-zinc-700"
-                            }`}
-                            style={{ width: `${player.score}%` }}
-                          />
-                        </div>
-                        <span className={`text-xs font-semibold font-mono ${scoreColor}`}>
-                          {player.score}%
-                        </span>
-                        <span className="text-zinc-700 text-xs font-mono uppercase tracking-wide">
-                          7-day
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <span className={`text-lg font-bold font-mono ${scoreColor}`}>
-                        {player.score}%
-                      </span>
                     </div>
                   </div>
                 );
