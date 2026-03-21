@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+
+function getPeriodKey(date: string, frequency: string): string {
+  if (frequency === "WEEKLY") {
+    return format(parseISO(date), "RRRR-'W'II");
+  }
+  if (frequency === "MONTHLY") {
+    return date.slice(0, 7);
+  }
+  return date;
+}
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -22,22 +32,33 @@ export async function GET(req: NextRequest) {
 
   const userId = session.user.id;
 
+  const dailyKey = date;
+  const weeklyKey = format(parseISO(date), "RRRR-'W'II");
+  const monthlyKey = date.slice(0, 7);
+
   const goals = await prisma.goal.findMany({
     where: { userId, active: true },
     orderBy: { createdAt: "asc" },
-    include: {
-      completions: {
-        where: { date },
-      },
+  });
+
+  const completions = await prisma.dailyCompletion.findMany({
+    where: {
+      userId,
+      goalId: { in: goals.map((g) => g.id) },
+      date: { in: [dailyKey, weeklyKey, monthlyKey] },
     },
   });
+
+  // Map goalId -> completed (regardless of which period key matched)
+  const completedGoalIds = new Set(completions.map((c) => c.goalId));
 
   const result = goals.map((goal) => ({
     id: goal.id,
     title: goal.title,
     active: goal.active,
+    frequency: goal.frequency,
     createdAt: goal.createdAt,
-    completed: goal.completions.length > 0,
+    completed: completedGoalIds.has(goal.id),
   }));
 
   return NextResponse.json(result);
@@ -51,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { title } = body as { title?: string };
+    const { title, frequency } = body as { title?: string; frequency?: string };
 
     if (!title) {
       return NextResponse.json(
@@ -60,22 +81,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const freq = ["DAILY", "WEEKLY", "MONTHLY"].includes(frequency ?? "")
+      ? (frequency as "DAILY" | "WEEKLY" | "MONTHLY")
+      : "DAILY";
+
     const userId = session.user.id;
 
     const goal = await prisma.goal.create({
       data: {
         userId,
         title: title.trim(),
+        frequency: freq,
       },
     });
 
-    const today = format(new Date(), "yyyy-MM-dd");
-    const activeCount = await prisma.goal.count({ where: { userId, active: true } });
-    await prisma.dailyGoalCount.upsert({
-      where: { userId_date: { userId, date: today } },
-      create: { userId, date: today, count: activeCount },
-      update: { count: activeCount },
-    });
+    // Only update the daily snapshot for daily goals
+    if (freq === "DAILY") {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const activeCount = await prisma.goal.count({
+        where: { userId, active: true, frequency: "DAILY" },
+      });
+      await prisma.dailyGoalCount.upsert({
+        where: { userId_date: { userId, date: today } },
+        create: { userId, date: today, count: activeCount },
+        update: { count: activeCount },
+      });
+    }
 
     return NextResponse.json(goal, { status: 201 });
   } catch (error) {

@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+
+function getPeriodKey(date: string, frequency: string): string {
+  if (frequency === "WEEKLY") {
+    return format(parseISO(date), "RRRR-'W'II");
+  }
+  if (frequency === "MONTHLY") {
+    return date.slice(0, 7);
+  }
+  return date;
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -50,27 +60,34 @@ export async function PATCH(
       );
     }
 
+    const periodKey = getPeriodKey(date, goal.frequency);
+
     if (completed) {
       await prisma.dailyCompletion.upsert({
-        where: { goalId_date: { goalId: id, date } },
-        create: { goalId: id, userId, date },
+        where: { goalId_date: { goalId: id, date: periodKey } },
+        create: { goalId: id, userId, date: periodKey },
         update: {},
       });
     } else {
       await prisma.dailyCompletion.deleteMany({
-        where: { goalId: id, date },
+        where: { goalId: id, date: periodKey },
       });
     }
 
-    const today = format(new Date(), "yyyy-MM-dd");
-    const activeCount = await prisma.goal.count({ where: { userId, active: true } });
-    await prisma.dailyGoalCount.upsert({
-      where: { userId_date: { userId, date: today } },
-      create: { userId, date: today, count: activeCount },
-      update: { count: activeCount },
-    });
+    // Only update the daily snapshot for daily goals
+    if (goal.frequency === "DAILY") {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const activeCount = await prisma.goal.count({
+        where: { userId, active: true, frequency: "DAILY" },
+      });
+      await prisma.dailyGoalCount.upsert({
+        where: { userId_date: { userId, date: today } },
+        create: { userId, date: today, count: activeCount },
+        update: { count: activeCount },
+      });
+    }
 
-    return NextResponse.json({ id, completed, date });
+    return NextResponse.json({ id, completed, date: periodKey });
   } catch (error) {
     console.error("Update goal error:", error);
     return NextResponse.json(
@@ -102,13 +119,18 @@ export async function DELETE(
 
   await prisma.goal.update({ where: { id }, data: { active: false } });
 
-  const today = format(new Date(), "yyyy-MM-dd");
-  const activeCount = await prisma.goal.count({ where: { userId, active: true } });
-  await prisma.dailyGoalCount.upsert({
-    where: { userId_date: { userId, date: today } },
-    create: { userId, date: today, count: activeCount },
-    update: { count: activeCount },
-  });
+  // Only update the daily snapshot for daily goals
+  if (goal.frequency === "DAILY") {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const activeCount = await prisma.goal.count({
+      where: { userId, active: true, frequency: "DAILY" },
+    });
+    await prisma.dailyGoalCount.upsert({
+      where: { userId_date: { userId, date: today } },
+      create: { userId, date: today, count: activeCount },
+      update: { count: activeCount },
+    });
+  }
 
   return NextResponse.json({ success: true });
 }

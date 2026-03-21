@@ -3,14 +3,25 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { format, addMonths, startOfMonth, getDay, parseISO } from "date-fns";
+import {
+  format,
+  addMonths,
+  startOfMonth,
+  getDay,
+  parseISO,
+  startOfWeek,
+  endOfWeek,
+} from "date-fns";
 import { toast } from "sonner";
 import NavBar from "@/components/NavBar";
+
+type GoalFrequency = "DAILY" | "WEEKLY" | "MONTHLY";
 
 interface Goal {
   id: string;
   title: string;
   active: boolean;
+  frequency: GoalFrequency;
   completed: boolean;
 }
 
@@ -22,12 +33,25 @@ interface CalendarDay {
   isFuture: boolean;
 }
 
+const TAB_LABELS: Record<GoalFrequency, string> = {
+  DAILY: "Daily",
+  WEEKLY: "Weekly",
+  MONTHLY: "Monthly",
+};
+
+const TAB_PLACEHOLDERS: Record<GoalFrequency, string> = {
+  DAILY: "What do you want to accomplish every day?",
+  WEEKLY: "What do you want to accomplish this week?",
+  MONTHLY: "What do you want to accomplish this month?",
+};
+
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
   const today = format(new Date(), "yyyy-MM-dd");
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [activeTab, setActiveTab] = useState<GoalFrequency>("DAILY");
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [loadingGoals, setLoadingGoals] = useState(true);
   const [addingGoal, setAddingGoal] = useState(false);
@@ -89,7 +113,7 @@ export default function DashboardPage() {
       const res = await fetch("/api/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, frequency: activeTab }),
       });
       if (!res.ok) throw new Error("Failed to add goal");
       setNewGoalTitle("");
@@ -177,8 +201,9 @@ export default function DashboardPage() {
     );
   }
 
-  const totalGoals = goals.length;
-  const completedGoals = goals.filter((g) => g.completed).length;
+  const tabGoals = goals.filter((g) => g.frequency === activeTab);
+  const totalGoals = tabGoals.length;
+  const completedGoals = tabGoals.filter((g) => g.completed).length;
   const score =
     totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
 
@@ -200,29 +225,63 @@ export default function DashboardPage() {
           ? "bg-red-500"
           : "bg-zinc-700";
 
-  const todayLabel = format(new Date(), "EEEE, MMMM d");
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+
+  const periodLabel: Record<GoalFrequency, string> = {
+    DAILY: format(new Date(), "EEEE, MMMM d"),
+    WEEKLY: `${format(weekStart, "MMM d")} – ${format(weekEnd, "MMM d")}`,
+    MONTHLY: format(new Date(), "MMMM yyyy"),
+  };
+
+  const scoreCardTitle: Record<GoalFrequency, string> = {
+    DAILY: "Lock-In Score",
+    WEEKLY: "Weekly Progress",
+    MONTHLY: "Monthly Progress",
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950">
       <NavBar />
 
       <main className="max-w-5xl mx-auto px-4 py-8">
-        {/* Date header */}
+        {/* Frequency tabs */}
+        <div className="mb-6 flex items-center gap-1">
+          {(["DAILY", "WEEKLY", "MONTHLY"] as GoalFrequency[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 text-xs font-mono uppercase tracking-widest transition-colors rounded-none ${
+                activeTab === tab
+                  ? "bg-zinc-100 text-zinc-950"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+              }`}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
+        </div>
+
+        {/* Period label */}
         <div className="mb-8">
-          <p className="text-xs tracking-widest text-zinc-600 uppercase font-mono mb-1">Today</p>
+          <p className="text-xs tracking-widest text-zinc-600 uppercase font-mono mb-1">
+            {activeTab === "DAILY" ? "Today" : activeTab === "WEEKLY" ? "This Week" : "This Month"}
+          </p>
           <h1 className="text-xl font-bold tracking-tight text-zinc-50">
-            {todayLabel}
+            {periodLabel[activeTab]}
           </h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-6">
           {/* Left column: score + goals */}
           <div className="lg:col-span-2 space-y-0">
-            {/* Lock-In Score card */}
+            {/* Score card */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-none p-6 mb-px">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-xs tracking-widest text-zinc-500 uppercase mb-2">Lock-In Score</p>
+                  <p className="text-xs tracking-widest text-zinc-500 uppercase mb-2">
+                    {scoreCardTitle[activeTab]}
+                  </p>
                   <div className={`text-5xl font-bold tracking-tight ${scoreColor}`}>
                     {score}%
                   </div>
@@ -245,20 +304,22 @@ export default function DashboardPage() {
 
               {totalGoals === 0 && (
                 <p className="text-zinc-600 text-xs mt-3">
-                  No goals set yet — add your first goal below.
+                  No {TAB_LABELS[activeTab].toLowerCase()} goals yet — add one below.
                 </p>
               )}
             </div>
 
             {/* Add Goal */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-none p-6 mb-px">
-              <p className="text-xs tracking-widest text-zinc-500 uppercase mb-4">Add a Goal</p>
+              <p className="text-xs tracking-widest text-zinc-500 uppercase mb-4">
+                Add a {TAB_LABELS[activeTab]} Goal
+              </p>
               <form onSubmit={handleAddGoal} className="flex gap-3">
                 <input
                   type="text"
                   value={newGoalTitle}
                   onChange={(e) => setNewGoalTitle(e.target.value)}
-                  placeholder="What do you want to accomplish every day?"
+                  placeholder={TAB_PLACEHOLDERS[activeTab]}
                   className="flex-1 bg-zinc-950 border border-zinc-700 text-zinc-50 placeholder-zinc-600 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-zinc-500 transition-colors"
                 />
                 <button
@@ -273,41 +334,47 @@ export default function DashboardPage() {
 
             {/* Goals list */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-none">
-              <div className="px-6 py-4 border-b border-zinc-800">
+              <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
                 <p className="text-xs tracking-widest text-zinc-500 uppercase">
-                  {totalGoals === 0 ? "Goals" : `Goals (${totalGoals})`}
+                  {totalGoals === 0 ? `${TAB_LABELS[activeTab]} Goals` : `${TAB_LABELS[activeTab]} Goals (${totalGoals})`}
                 </p>
+                {totalGoals > 0 && completedGoals < totalGoals && (
+                  <p className="text-xs text-zinc-600 font-mono">
+                    Check off each goal to track progress
+                  </p>
+                )}
               </div>
 
               {loadingGoals ? (
                 <div className="text-zinc-600 text-sm py-6 text-center font-mono">
                   Loading goals...
                 </div>
-              ) : goals.length === 0 ? (
+              ) : tabGoals.length === 0 ? (
                 <div className="text-center py-10 px-6">
                   <p className="text-zinc-500 text-sm">
-                    No goals yet. Add a recurring daily goal above.
+                    No {TAB_LABELS[activeTab].toLowerCase()} goals yet. Add one above.
                   </p>
                 </div>
               ) : (
                 <ul className="divide-y divide-zinc-800">
-                  {goals.map((goal) => (
+                  {tabGoals.map((goal) => (
                     <li
                       key={goal.id}
-                      className={`flex items-center gap-3 px-6 py-3 transition-all group ${
+                      className={`flex items-center gap-4 px-6 py-4 transition-all group ${
                         goal.completed ? "" : "hover:bg-zinc-800/20"
                       }`}
                     >
                       <button
                         onClick={() => handleToggle(goal)}
-                        className={`flex-shrink-0 w-4 h-4 border flex items-center justify-center transition-all rounded-none ${
+                        aria-label={goal.completed ? "Mark incomplete" : "Mark complete"}
+                        className={`flex-shrink-0 w-6 h-6 border-2 flex items-center justify-center transition-all rounded-none ${
                           goal.completed
                             ? "bg-emerald-400 border-emerald-400"
-                            : "border-zinc-600 hover:border-zinc-400"
+                            : "border-zinc-500 hover:border-zinc-200 hover:bg-zinc-800"
                         }`}
                       >
                         {goal.completed && (
-                          <svg className="w-2.5 h-2.5 text-zinc-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <svg className="w-3.5 h-3.5 text-zinc-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
                         )}

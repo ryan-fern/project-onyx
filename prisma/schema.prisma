@@ -20,13 +20,20 @@ model User {
   goalCounts  DailyGoalCount[]
 }
 
+enum GoalFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 model Goal {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  active    Boolean       @default(true)
+  frequency GoalFrequency @default(DAILY)
+  createdAt DateTime      @default(now())
 
   completions DailyCompletion[]
 
