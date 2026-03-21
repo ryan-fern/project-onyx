@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [activeTab, setActiveTab] = useState<GoalFrequency>("DAILY");
   const [newGoalTitle, setNewGoalTitle] = useState("");
+  const [newGoalFrequency, setNewGoalFrequency] = useState<GoalFrequency>("DAILY");
   const [loadingGoals, setLoadingGoals] = useState(true);
   const [addingGoal, setAddingGoal] = useState(false);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
@@ -113,7 +114,7 @@ export default function DashboardPage() {
       const res = await fetch("/api/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, frequency: activeTab }),
+        body: JSON.stringify({ title, frequency: newGoalFrequency }),
       });
       if (!res.ok) throw new Error("Failed to add goal");
       setNewGoalTitle("");
@@ -250,7 +251,7 @@ export default function DashboardPage() {
           {(["DAILY", "WEEKLY", "MONTHLY"] as GoalFrequency[]).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); setNewGoalFrequency(tab); }}
               className={`px-4 py-1.5 text-xs font-mono uppercase tracking-widest transition-colors rounded-none ${
                 activeTab === tab
                   ? "bg-zinc-100 text-zinc-950"
@@ -311,15 +312,30 @@ export default function DashboardPage() {
 
             {/* Add Goal */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-none p-6 mb-px">
-              <p className="text-xs tracking-widest text-zinc-500 uppercase mb-4">
-                Add a {TAB_LABELS[activeTab]} Goal
-              </p>
-              <form onSubmit={handleAddGoal} className="flex gap-3">
+              <p className="text-xs tracking-widest text-zinc-500 uppercase mb-4">Add a Goal</p>
+              <form onSubmit={handleAddGoal} className="flex flex-col gap-3">
+                <div className="flex gap-1">
+                  {(["DAILY", "WEEKLY", "MONTHLY"] as GoalFrequency[]).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setNewGoalFrequency(f)}
+                      className={`px-3 py-1 text-xs font-mono uppercase tracking-widest transition-colors rounded-none ${
+                        newGoalFrequency === f
+                          ? "bg-zinc-100 text-zinc-950"
+                          : "text-zinc-500 border border-zinc-700 hover:text-zinc-300 hover:border-zinc-500"
+                      }`}
+                    >
+                      {TAB_LABELS[f]}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-3">
                 <input
                   type="text"
                   value={newGoalTitle}
                   onChange={(e) => setNewGoalTitle(e.target.value)}
-                  placeholder={TAB_PLACEHOLDERS[activeTab]}
+                  placeholder={TAB_PLACEHOLDERS[newGoalFrequency]}
                   className="flex-1 bg-zinc-950 border border-zinc-700 text-zinc-50 placeholder-zinc-600 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-zinc-500 transition-colors"
                 />
                 <button
@@ -329,6 +345,7 @@ export default function DashboardPage() {
                 >
                   {addingGoal ? "Adding..." : "Add Goal"}
                 </button>
+                </div>
               </form>
             </div>
 
