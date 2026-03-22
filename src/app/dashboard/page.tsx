@@ -50,6 +50,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const today = format(new Date(), "yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState(today);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [newGoalFrequency, setNewGoalFrequency] = useState<GoalFrequency>("DAILY");
@@ -66,10 +67,10 @@ export default function DashboardPage() {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
-  const fetchGoals = useCallback(async () => {
+  const fetchGoals = useCallback(async (date: string) => {
     setLoadingGoals(true);
     try {
-      const res = await fetch(`/api/goals?date=${today}`);
+      const res = await fetch(`/api/goals?date=${date}`);
       if (!res.ok) throw new Error();
       setGoals(await res.json());
     } catch {
@@ -77,7 +78,7 @@ export default function DashboardPage() {
     } finally {
       setLoadingGoals(false);
     }
-  }, [today]);
+  }, []);
 
   const fetchCalendar = useCallback(async (month: Date) => {
     setCalendarLoading(true);
@@ -95,10 +96,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      fetchGoals();
+      fetchGoals(selectedDate);
       fetchCalendar(calendarMonth);
     }
-  }, [status, fetchGoals, fetchCalendar, calendarMonth]);
+  }, [status, selectedDate, fetchGoals, fetchCalendar, calendarMonth]);
 
   async function handleAddGoal(e: React.FormEvent) {
     e.preventDefault();
@@ -114,7 +115,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error();
       setNewGoalTitle("");
       toast.success("Goal added.");
-      fetchGoals();
+      fetchGoals(selectedDate);
       fetchCalendar(calendarMonth);
     } catch {
       toast.error("Failed to add goal.");
@@ -130,7 +131,7 @@ export default function DashboardPage() {
       const res = await fetch(`/api/goals/${goal.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: today, completed: newCompleted }),
+        body: JSON.stringify({ date: selectedDate, completed: newCompleted }),
       });
       if (!res.ok) throw new Error();
       toast.success(newCompleted ? "Goal completed!" : "Goal unchecked.");
@@ -177,6 +178,7 @@ export default function DashboardPage() {
       const res = await fetch(`/api/goals/${goalId}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       toast.success("Goal removed.");
+      fetchGoals(selectedDate);
       fetchCalendar(calendarMonth);
     } catch {
       setGoals(prev);
@@ -303,10 +305,22 @@ export default function DashboardPage() {
       <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Date header */}
         <div className="mb-8">
-          <p className="text-xs tracking-widest text-zinc-600 uppercase font-mono mb-1">Today</p>
-          <h1 className="text-xl font-bold tracking-tight text-zinc-50">
-            {format(new Date(), "EEEE, MMMM d")}
-          </h1>
+          <p className="text-xs tracking-widest text-zinc-600 uppercase font-mono mb-1">
+            {selectedDate === today ? "Today" : "Past Day"}
+          </p>
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold tracking-tight text-zinc-50">
+              {format(parseISO(selectedDate), "EEEE, MMMM d")}
+            </h1>
+            {selectedDate !== today && (
+              <button
+                onClick={() => setSelectedDate(today)}
+                className="text-xs font-mono text-zinc-500 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-500 px-2 py-0.5 transition-colors"
+              >
+                ← Back to today
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-6">
@@ -385,7 +399,10 @@ export default function DashboardPage() {
                   <p className="text-xs tracking-widest text-zinc-500 uppercase">
                     Daily Goals{dailyGoals.length > 0 && ` (${dailyGoals.length})`}
                   </p>
-                  <p className="text-xs text-zinc-600 font-mono mt-0.5">{format(new Date(), "EEEE, MMM d")}</p>
+                  <p className="text-xs text-zinc-600 font-mono mt-0.5">
+                    {format(parseISO(selectedDate), "EEEE, MMM d")}
+                    {selectedDate !== today && " — click a calendar day to change"}
+                  </p>
                 </div>
                 {dailyGoals.length > 0 && dailyCompleted < dailyGoals.length && (
                   <p className="text-xs text-zinc-600 font-mono">Check off each goal</p>
@@ -462,6 +479,8 @@ export default function DashboardPage() {
                     {calendarDays.map((day) => {
                       const dayNum = parseInt(day.date.split("-")[2]);
                       const isToday = day.date === today;
+                      const isSelected = day.date === selectedDate && !isToday;
+                      const isClickable = !day.isFuture;
                       const bg =
                         day.isFuture || day.score === null ? "bg-zinc-900 border-zinc-800" :
                         day.score >= 80 ? "bg-emerald-500 border-emerald-400" :
@@ -476,7 +495,8 @@ export default function DashboardPage() {
                           key={day.date}
                           onMouseEnter={() => setHoveredDay(day)}
                           onMouseLeave={() => setHoveredDay(null)}
-                          className={`aspect-square flex items-center justify-center border text-xs font-mono cursor-default transition-opacity ${bg} ${text} ${isToday ? "ring-1 ring-white ring-offset-1 ring-offset-zinc-900" : ""}`}
+                          onClick={() => isClickable && setSelectedDate(day.date)}
+                          className={`aspect-square flex items-center justify-center border text-xs font-mono transition-opacity ${bg} ${text} ${isClickable ? "cursor-pointer hover:opacity-75" : "cursor-default"} ${isToday ? "ring-1 ring-white ring-offset-1 ring-offset-zinc-900" : ""} ${isSelected ? "ring-2 ring-zinc-300 ring-offset-1 ring-offset-zinc-900" : ""}`}
                         >
                           {dayNum}
                         </div>
