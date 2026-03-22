@@ -1,44 +1,81 @@
-# Lock In Tracker
+# Lock-In Tracker
 
-Track your daily goals, compute your Lock-In Score, and compete with friends on the leaderboard.
+A personal accountability app for tracking daily, weekly, and monthly goals. Set your goals, check them off each day, and compete with friends on the leaderboard.
 
-## Setup
+## Features
 
-1. `npm install`
-2. Copy `.env.example` to `.env` and fill in values
-3. `npm run db:push` to create the database
-4. `npm run dev` to start
+- **Goal Tracking** — Create daily, weekly, and monthly goals and check them off as you complete them
+- **Lock-In Score** — Your daily completion percentage (goals completed / goals set × 100)
+- **Streaks** — Consecutive days with 100% completion
+- **Calendar Heatmap** — Visual history of your daily scores by month
+- **Backfill Past Days** — Click any past day on the calendar to retroactively log completions
+- **Leaderboard** — Compare your trailing 7-day score and streak against friends
+- **Friend System** — Send and accept friend requests by email
+- **Email Notifications** — Weekly digest and daily reminders via Resend
 
-## Environment Variables
+## Tech Stack
+
+- [Next.js 15](https://nextjs.org/) (App Router)
+- [PostgreSQL](https://www.postgresql.org/) via [Prisma](https://www.prisma.io/)
+- [NextAuth](https://next-auth.js.org/) (credentials-based auth)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Resend](https://resend.com/) (transactional email)
+- [Sonner](https://sonner.emilkowal.ski/) (toast notifications)
+
+## Getting Started
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+Copy `.env.example` to `.env` and fill in the values:
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Description |
 |---|---|
 | `NEXTAUTH_URL` | Your app URL (e.g. `http://localhost:3000`) |
 | `NEXTAUTH_SECRET` | Random secret for JWT signing |
-| `DATABASE_URL` | SQLite file path (e.g. `file:./dev.db`) |
+| `DATABASE_URL` | PostgreSQL connection string (pooled) |
+| `DIRECT_URL` | PostgreSQL direct connection string (for migrations) |
 | `RESEND_API_KEY` | Resend API key for sending emails |
 | `EMAIL_FROM` | From address for emails |
-| `CRON_SECRET` | Secret for protecting the weekly report endpoint |
+| `CRON_SECRET` | Secret for protecting cron endpoints |
 
-## Weekly Reports
+### 3. Push the database schema
 
-POST `/api/weekly-report` with `Authorization: Bearer YOUR_CRON_SECRET` to trigger weekly emails.
-
-Use Vercel Cron or similar to run every Monday:
-
-```json
-{
-  "crons": [{
-    "path": "/api/weekly-report",
-    "schedule": "0 9 * * 1"
-  }]
-}
+```bash
+npm run db:push
 ```
 
-## Features
+### 4. Start the dev server
 
-- **Daily Goals** — Set and check off goals for each day
-- **Lock-In Score** — Completions / total goals * 100%
-- **Friend System** — Send/accept friend requests by email
-- **Leaderboard** — Trailing 7-day scores for you and friends
-- **Weekly Email Reports** — Automated via API endpoint
+```bash
+npm run dev
+```
+
+## Cron Jobs
+
+Two scheduled jobs run automatically when deployed on Vercel (configured in `vercel.json`):
+
+| Endpoint | Schedule | Purpose |
+|---|---|---|
+| `/api/weekly-report` | Mondays at 9am UTC | Sends weekly digest emails |
+| `/api/daily-reminder` | Daily at 12pm UTC | Sends daily reminder emails |
+
+To trigger manually, send a `POST` request with `Authorization: Bearer YOUR_CRON_SECRET`.
+
+## Scripts
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run db:push      # Sync Prisma schema to database
+npm run db:studio    # Open Prisma Studio (database GUI)
+```
